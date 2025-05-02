@@ -5,12 +5,11 @@ import {
   PROFILE_USERNAME_MAX,
   PROFILE_USERNAME_MIN
 } from "@/db/limits"
-import { updateProfile } from "@/db/profile"
+import { updateProfileDb } from "@/db/profile"
 import { uploadProfileImage } from "@/db/storage/profile-images"
 import { exportLocalStorageAsJSON } from "@/lib/export-old-data"
 import { fetchOpenRouterModels } from "@/lib/models/fetch-models"
 import { LLM_LIST_MAP } from "@/lib/models/llm/llm-list"
-import { supabase } from "@/lib/supabase/browser-client"
 import { cn } from "@/lib/utils"
 import { OpenRouterLLM } from "@/types"
 import {
@@ -119,7 +118,8 @@ export const ProfileSettings: FC<ProfileSettingsProps> = ({}) => {
   )
 
   const handleSignOut = async () => {
-    await supabase.auth.signOut()
+    document.cookie =
+      "auth_token=; expires=Thu, 01 Jan 1970 00:00:00 UTC; path=/;"
     router.push("/login")
     router.refresh()
     return
@@ -136,7 +136,7 @@ export const ProfileSettings: FC<ProfileSettingsProps> = ({}) => {
       profileImagePath = path
     }
 
-    const updatedProfile = await updateProfile(profile.id, {
+    const updatedProfile = await updateProfileDb(profile.id, {
       ...profile,
       display_name: displayName,
       username,

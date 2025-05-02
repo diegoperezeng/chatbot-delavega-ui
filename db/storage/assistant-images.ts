@@ -1,56 +1,34 @@
-import { supabase } from "@/lib/supabase/browser-client"
-import { Tables } from "@/supabase/types"
+// ATENÇÃO: Este arquivo foi adaptado para não depender do Supabase.
+// Implemente aqui a integração com S3, armazenamento local ou outro serviço de arquivos.
 
 export const uploadAssistantImage = async (
-  assistant: Tables<"assistants">,
+  assistant: { user_id: string; id: string; image_path: string },
   image: File
 ) => {
-  const bucket = "assistant_images"
-
   const imageSizeLimit = 6000000 // 6MB
-
   if (image.size > imageSizeLimit) {
     throw new Error(`Image must be less than ${imageSizeLimit / 1000000}MB`)
   }
 
-  const currentPath = assistant.image_path
+  // Exemplo de caminho para salvar a imagem
   let filePath = `${assistant.user_id}/${assistant.id}/${Date.now()}`
 
-  if (currentPath.length > 0) {
-    const { error: deleteError } = await supabase.storage
-      .from(bucket)
-      .remove([currentPath])
+  // Aqui você pode implementar a lógica para deletar a imagem antiga, se necessário
+  // Exemplo: await deleteFromStorage(currentPath)
 
-    if (deleteError) {
-      throw new Error("Error deleting old image")
-    }
-  }
+  // Aqui você pode implementar a lógica de upload para S3, local, etc.
+  // Exemplo:
+  // await uploadToStorage(filePath, image)
 
-  const { error } = await supabase.storage
-    .from(bucket)
-    .upload(filePath, image, {
-      upsert: true
-    })
-
-  if (error) {
-    throw new Error("Error uploading image")
-  }
-
+  // Retorne o caminho salvo
   return filePath
 }
 
 export const getAssistantImageFromStorage = async (filePath: string) => {
-  try {
-    const { data, error } = await supabase.storage
-      .from("assistant_images")
-      .createSignedUrl(filePath, 60 * 60 * 24) // 24hrs
-
-    if (error) {
-      throw new Error("Error downloading assistant image")
-    }
-
-    return data.signedUrl
-  } catch (error) {
-    console.error(error)
-  }
+  // Implemente aqui a lógica para obter a URL da imagem (S3, local, etc.)
+  // Exemplo para S3:
+  // return getSignedUrlFromS3(filePath)
+  // Exemplo para local:
+  // return `/uploads/assistant_images/${filePath}`
+  return null // Retorne a URL real aqui
 }

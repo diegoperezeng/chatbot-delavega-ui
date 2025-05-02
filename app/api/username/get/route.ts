@@ -1,5 +1,4 @@
-import { Database } from "@/supabase/types"
-import { createClient } from "@supabase/supabase-js"
+import { query } from "@/lib/postgres/client"
 
 export const runtime = "edge"
 
@@ -10,26 +9,21 @@ export async function POST(request: Request) {
   }
 
   try {
-    const supabaseAdmin = createClient<Database>(
-      process.env.NEXT_PUBLIC_SUPABASE_URL!,
-      process.env.SUPABASE_SERVICE_ROLE_KEY!
+    const result = await query(
+      "SELECT username FROM profiles WHERE user_id = $1",
+      [userId]
     )
-
-    const { data, error } = await supabaseAdmin
-      .from("profiles")
-      .select("username")
-      .eq("user_id", userId)
-      .single()
+    const data = result.rows[0]
 
     if (!data) {
-      throw new Error(error.message)
+      throw new Error("Usuário não encontrado")
     }
 
     return new Response(JSON.stringify({ username: data.username }), {
       status: 200
     })
   } catch (error: any) {
-    const errorMessage = error.error?.message || "An unexpected error occurred"
+    const errorMessage = error.message || "An unexpected error occurred"
     const errorCode = error.status || 500
     return new Response(JSON.stringify({ message: errorMessage }), {
       status: errorCode

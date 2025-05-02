@@ -1,7 +1,6 @@
 import { generateLocalEmbedding } from "@/lib/generate-local-embedding"
 import { checkApiKey, getServerProfile } from "@/lib/server/server-chat-helpers"
-import { Database } from "@/supabase/types"
-import { createClient } from "@supabase/supabase-js"
+import { query } from "@/lib/postgres/client"
 import OpenAI from "openai"
 
 export async function POST(request: Request) {
@@ -16,11 +15,6 @@ export async function POST(request: Request) {
   const uniqueFileIds = [...new Set(fileIds)]
 
   try {
-    const supabaseAdmin = createClient<Database>(
-      process.env.NEXT_PUBLIC_SUPABASE_URL!,
-      process.env.SUPABASE_SERVICE_ROLE_KEY!
-    )
-
     const profile = await getServerProfile()
 
     if (embeddingsProvider === "openai") {
@@ -56,33 +50,27 @@ export async function POST(request: Request) {
 
       const openaiEmbedding = response.data.map(item => item.embedding)[0]
 
-      const { data: openaiFileItems, error: openaiError } =
-        await supabaseAdmin.rpc("match_file_items_openai", {
-          query_embedding: openaiEmbedding as any,
-          match_count: sourceCount,
-          file_ids: uniqueFileIds
-        })
-
-      if (openaiError) {
-        throw openaiError
-      }
-
-      chunks = openaiFileItems
+      const result = await query(
+        `SELECT *, (openai_embedding <=> $1) AS similarity
+         FROM file_items
+         WHERE file_id = ANY($2)
+         ORDER BY similarity ASC
+         LIMIT $3`,
+        [openaiEmbedding, uniqueFileIds, sourceCount]
+      )
+      chunks = result.rows
     } else if (embeddingsProvider === "local") {
       const localEmbedding = await generateLocalEmbedding(userInput)
 
-      const { data: localFileItems, error: localFileItemsError } =
-        await supabaseAdmin.rpc("match_file_items_local", {
-          query_embedding: localEmbedding as any,
-          match_count: sourceCount,
-          file_ids: uniqueFileIds
-        })
-
-      if (localFileItemsError) {
-        throw localFileItemsError
-      }
-
-      chunks = localFileItems
+      const result = await query(
+        `SELECT *, (local_embedding <=> $1) AS similarity
+         FROM file_items
+         WHERE file_id = ANY($2)
+         ORDER BY similarity ASC
+         LIMIT $3`,
+        [localEmbedding, uniqueFileIds, sourceCount]
+      )
+      chunks = result.rows
     }
 
     const mostSimilarChunks = chunks?.sort(
@@ -93,7 +81,7 @@ export async function POST(request: Request) {
       status: 200
     })
   } catch (error: any) {
-    const errorMessage = error.error?.message || "An unexpected error occurred"
+    const errorMessage = error.message || "An unexpected error occurred"
     const errorCode = error.status || 500
     return new Response(JSON.stringify({ message: errorMessage }), {
       status: errorCode

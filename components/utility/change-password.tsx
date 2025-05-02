@@ -1,6 +1,5 @@
 "use client"
 
-import { supabase } from "@/lib/supabase/browser-client"
 import { useRouter } from "next/navigation"
 import { FC, useState } from "react"
 import { Button } from "../ui/button"
@@ -21,15 +20,31 @@ export const ChangePassword: FC<ChangePasswordProps> = () => {
 
   const [newPassword, setNewPassword] = useState("")
   const [confirmPassword, setConfirmPassword] = useState("")
+  const [loading, setLoading] = useState(false)
 
   const handleResetPassword = async () => {
     if (!newPassword) return toast.info("Please enter your new password.")
-
-    await supabase.auth.updateUser({ password: newPassword })
-
-    toast.success("Password changed successfully.")
-
-    return router.push("/login")
+    if (newPassword !== confirmPassword)
+      return toast.error("Passwords do not match.")
+    setLoading(true)
+    try {
+      const res = await fetch("/api/auth/change-password", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ newPassword })
+      })
+      if (res.ok) {
+        toast.success("Password changed successfully.")
+        router.push("/login")
+      } else {
+        const data = await res.json()
+        toast.error(data.message || "Failed to change password.")
+      }
+    } catch (e) {
+      toast.error("Failed to change password.")
+    } finally {
+      setLoading(false)
+    }
   }
 
   return (
@@ -56,7 +71,9 @@ export const ChangePassword: FC<ChangePasswordProps> = () => {
         />
 
         <DialogFooter>
-          <Button onClick={handleResetPassword}>Confirm Change</Button>
+          <Button onClick={handleResetPassword} disabled={loading}>
+            {loading ? "Changing..." : "Confirm Change"}
+          </Button>
         </DialogFooter>
       </DialogContent>
     </Dialog>

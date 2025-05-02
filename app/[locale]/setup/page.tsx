@@ -1,7 +1,7 @@
 "use client"
 
 import { ChatbotUIContext } from "@/context/context"
-import { getProfileByUserId, updateProfile } from "@/db/profile"
+import { getProfileByUserIdDb, updateProfileDb } from "@/db/profile"
 import {
   getHomeWorkspaceByUserId,
   getWorkspacesByUserId
@@ -10,8 +10,6 @@ import {
   fetchHostedModels,
   fetchOpenRouterModels
 } from "@/lib/models/fetch-models"
-import { supabase } from "@/lib/supabase/browser-client"
-import { TablesUpdate } from "@/supabase/types"
 import { useRouter } from "next/navigation"
 import { useContext, useEffect, useState } from "react"
 import { APIStep } from "../../../components/setup/api-step"
@@ -36,7 +34,6 @@ export default function SetupPage() {
   const router = useRouter()
 
   const [loading, setLoading] = useState(true)
-
   const [currentStep, setCurrentStep] = useState(1)
 
   // Profile Step
@@ -63,38 +60,40 @@ export default function SetupPage() {
 
   useEffect(() => {
     ;(async () => {
-      const session = (await supabase.auth.getSession()).data.session
-
-      if (!session) {
+      // Verifica autenticação via JWT em cookie (auth_token)
+      const token = document.cookie
+        .split("; ")
+        .find(row => row.startsWith("auth_token="))
+        ?.split("=")[1]
+      if (!token) {
         return router.push("/login")
+      }
+      // Recupera user_id do JWT
+      let userId = ""
+      try {
+        const payload = JSON.parse(atob(token.split(".")[1]))
+        userId = payload.user_id
+      } catch {
+        return router.push("/login")
+      }
+      const profile = await getProfileByUserIdDb(userId)
+      setProfile(profile)
+      setUsername(profile.username)
+
+      if (!profile.has_onboarded) {
+        setLoading(false)
       } else {
-        const user = session.user
-
-        const profile = await getProfileByUserId(user.id)
-        setProfile(profile)
-        setUsername(profile.username)
-
-        if (!profile.has_onboarded) {
-          setLoading(false)
-        } else {
-          const data = await fetchHostedModels(profile)
-
-          if (!data) return
-
-          setEnvKeyMap(data.envKeyMap)
-          setAvailableHostedModels(data.hostedModels)
-
-          if (profile["openrouter_api_key"] || data.envKeyMap["openrouter"]) {
-            const openRouterModels = await fetchOpenRouterModels()
-            if (!openRouterModels) return
-            setAvailableOpenRouterModels(openRouterModels)
-          }
-
-          const homeWorkspaceId = await getHomeWorkspaceByUserId(
-            session.user.id
-          )
-          return router.push(`/${homeWorkspaceId}/chat`)
+        const data = await fetchHostedModels(profile)
+        if (!data) return
+        setEnvKeyMap(data.envKeyMap)
+        setAvailableHostedModels(data.hostedModels)
+        if (profile["openrouter_api_key"] || data.envKeyMap["openrouter"]) {
+          const openRouterModels = await fetchOpenRouterModels()
+          if (!openRouterModels) return
+          setAvailableOpenRouterModels(openRouterModels)
         }
+        const homeWorkspaceId = await getHomeWorkspaceByUserId(userId)
+        return router.push(`/${homeWorkspaceId}/chat`)
       }
     })()
   }, [])
@@ -112,15 +111,23 @@ export default function SetupPage() {
   }
 
   const handleSaveSetupSetting = async () => {
-    const session = (await supabase.auth.getSession()).data.session
-    if (!session) {
+    // Verifica autenticação via JWT em cookie (auth_token)
+    const token = document.cookie
+      .split("; ")
+      .find(row => row.startsWith("auth_token="))
+      ?.split("=")[1]
+    if (!token) {
       return router.push("/login")
     }
-
-    const user = session.user
-    const profile = await getProfileByUserId(user.id)
-
-    const updateProfilePayload: TablesUpdate<"profiles"> = {
+    let userId = ""
+    try {
+      const payload = JSON.parse(atob(token.split(".")[1]))
+      userId = payload.user_id
+    } catch {
+      return router.push("/login")
+    }
+    const profile = await getProfileByUserIdDb(userId)
+    const updateProfilePayload = {
       ...profile,
       has_onboarded: true,
       display_name: displayName,
@@ -141,17 +148,15 @@ export default function SetupPage() {
       azure_openai_45_vision_id: azureOpenai45VisionID,
       azure_openai_embeddings_id: azureOpenaiEmbeddingsID
     }
-
-    const updatedProfile = await updateProfile(profile.id, updateProfilePayload)
+    const updatedProfile = await updateProfileDb(
+      profile.id,
+      updateProfilePayload
+    )
     setProfile(updatedProfile)
-
     const workspaces = await getWorkspacesByUserId(profile.user_id)
-    const homeWorkspace = workspaces.find(w => w.is_home)
-
-    // There will always be a home workspace
+    const homeWorkspace = workspaces.find((w: any) => w.is_home)
     setSelectedWorkspace(homeWorkspace!)
     setWorkspaces(workspaces)
-
     return router.push(`/${homeWorkspace?.id}/chat`)
   }
 

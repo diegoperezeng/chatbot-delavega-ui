@@ -14,7 +14,8 @@ import { getAssistantImageFromStorage } from "@/db/storage/assistant-images"
 import { getToolWorkspacesByWorkspaceId } from "@/db/tools"
 import { getWorkspaceById } from "@/db/workspaces"
 import { convertBlobToBase64 } from "@/lib/blob-to-b64"
-import { supabase } from "@/lib/supabase/browser-client"
+import { cookies } from "next/headers"
+import jwt from "jsonwebtoken"
 import { LLMID } from "@/types"
 import { useParams, useRouter, useSearchParams } from "next/navigation"
 import { ReactNode, useContext, useEffect, useState } from "react"
@@ -58,16 +59,26 @@ export default function WorkspaceLayout({ children }: WorkspaceLayoutProps) {
   } = useContext(ChatbotUIContext)
 
   const [loading, setLoading] = useState(true)
+  const [authChecked, setAuthChecked] = useState(false)
 
   useEffect(() => {
     ;(async () => {
-      const session = (await supabase.auth.getSession()).data.session
-
-      if (!session) {
-        return router.push("/login")
-      } else {
-        await fetchWorkspaceData(workspaceId)
+      const cookieStore = cookies()
+      const token = cookieStore.get("auth_token")?.value
+      let isAuthenticated = false
+      if (token) {
+        try {
+          const payload = jwt.verify(token, process.env.JWT_SECRET!)
+          isAuthenticated = Boolean((payload as any).user_id)
+        } catch {
+          isAuthenticated = false
+        }
       }
+      setAuthChecked(true)
+      if (!isAuthenticated) {
+        return router.push("/login")
+      }
+      await fetchWorkspaceData(workspaceId)
     })()
   }, [])
 
@@ -175,7 +186,7 @@ export default function WorkspaceLayout({ children }: WorkspaceLayoutProps) {
     setLoading(false)
   }
 
-  if (loading) {
+  if (loading || !authChecked) {
     return <Loading />
   }
 

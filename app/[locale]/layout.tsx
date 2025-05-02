@@ -3,12 +3,11 @@ import { GlobalState } from "@/components/utility/global-state"
 import { Providers } from "@/components/utility/providers"
 import TranslationsProvider from "@/components/utility/translations-provider"
 import initTranslations from "@/lib/i18n"
-import { Database } from "@/supabase/types"
-import { createServerClient } from "@supabase/ssr"
 import { Metadata, Viewport } from "next"
 import { Inter } from "next/font/google"
 import { cookies } from "next/headers"
 import { ReactNode } from "react"
+import jwt from "jsonwebtoken" // Certifique-se de instalar 'jsonwebtoken' e definir JWT_SECRET no .env
 import "./globals.css"
 
 const inter = Inter({ subsets: ["latin"] })
@@ -71,18 +70,17 @@ export default async function RootLayout({
   params: { locale }
 }: RootLayoutProps) {
   const cookieStore = cookies()
-  const supabase = createServerClient<Database>(
-    process.env.NEXT_PUBLIC_SUPABASE_URL!,
-    process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
-    {
-      cookies: {
-        get(name: string) {
-          return cookieStore.get(name)?.value
-        }
-      }
+  // Verifica autenticação via JWT em cookie (auth_token)
+  const token = cookieStore.get("auth_token")?.value
+  let isAuthenticated = false
+  if (token) {
+    try {
+      const payload = jwt.verify(token, process.env.JWT_SECRET!)
+      isAuthenticated = Boolean((payload as any).user_id)
+    } catch {
+      isAuthenticated = false
     }
-  )
-  const session = (await supabase.auth.getSession()).data.session
+  }
 
   const { t, resources } = await initTranslations(locale, i18nNamespaces)
 
@@ -97,7 +95,11 @@ export default async function RootLayout({
           >
             <Toaster richColors position="top-center" duration={3000} />
             <div className="bg-background text-foreground flex h-dvh flex-col items-center overflow-x-auto">
-              {session ? <GlobalState>{children}</GlobalState> : children}
+              {isAuthenticated ? (
+                <GlobalState>{children}</GlobalState>
+              ) : (
+                children
+              )}
             </div>
           </TranslationsProvider>
         </Providers>

@@ -3,7 +3,7 @@
 "use client"
 
 import { ChatbotUIContext } from "@/context/context"
-import { getProfileByUserId } from "@/db/profile"
+import { getProfileByUserIdDb } from "@/db/profile"
 import { getWorkspaceImageFromStorage } from "@/db/storage/workspace-images"
 import { getWorkspacesByUserId } from "@/db/workspaces"
 import { convertBlobToBase64 } from "@/lib/blob-to-b64"
@@ -12,8 +12,6 @@ import {
   fetchOllamaModels,
   fetchOpenRouterModels
 } from "@/lib/models/fetch-models"
-import { supabase } from "@/lib/supabase/browser-client"
-import { Tables } from "@/supabase/types"
 import {
   ChatFile,
   ChatMessage,
@@ -36,19 +34,19 @@ export const GlobalState: FC<GlobalStateProps> = ({ children }) => {
   const router = useRouter()
 
   // PROFILE STORE
-  const [profile, setProfile] = useState<Tables<"profiles"> | null>(null)
+  const [profile, setProfile] = useState<any>(null)
 
   // ITEMS STORE
-  const [assistants, setAssistants] = useState<Tables<"assistants">[]>([])
-  const [collections, setCollections] = useState<Tables<"collections">[]>([])
-  const [chats, setChats] = useState<Tables<"chats">[]>([])
-  const [files, setFiles] = useState<Tables<"files">[]>([])
-  const [folders, setFolders] = useState<Tables<"folders">[]>([])
-  const [models, setModels] = useState<Tables<"models">[]>([])
-  const [presets, setPresets] = useState<Tables<"presets">[]>([])
-  const [prompts, setPrompts] = useState<Tables<"prompts">[]>([])
-  const [tools, setTools] = useState<Tables<"tools">[]>([])
-  const [workspaces, setWorkspaces] = useState<Tables<"workspaces">[]>([])
+  const [assistants, setAssistants] = useState<any[]>([])
+  const [collections, setCollections] = useState<any[]>([])
+  const [chats, setChats] = useState<any[]>([])
+  const [files, setFiles] = useState<any[]>([])
+  const [folders, setFolders] = useState<any[]>([])
+  const [models, setModels] = useState<any[]>([])
+  const [presets, setPresets] = useState<any[]>([])
+  const [prompts, setPrompts] = useState<any[]>([])
+  const [tools, setTools] = useState<any[]>([])
+  const [workspaces, setWorkspaces] = useState<any[]>([])
 
   // MODELS STORE
   const [envKeyMap, setEnvKeyMap] = useState<Record<string, VALID_ENV_KEYS>>({})
@@ -59,17 +57,14 @@ export const GlobalState: FC<GlobalStateProps> = ({ children }) => {
   >([])
 
   // WORKSPACE STORE
-  const [selectedWorkspace, setSelectedWorkspace] =
-    useState<Tables<"workspaces"> | null>(null)
+  const [selectedWorkspace, setSelectedWorkspace] = useState<any>(null)
   const [workspaceImages, setWorkspaceImages] = useState<WorkspaceImage[]>([])
 
   // PRESET STORE
-  const [selectedPreset, setSelectedPreset] =
-    useState<Tables<"presets"> | null>(null)
+  const [selectedPreset, setSelectedPreset] = useState<any>(null)
 
   // ASSISTANT STORE
-  const [selectedAssistant, setSelectedAssistant] =
-    useState<Tables<"assistants"> | null>(null)
+  const [selectedAssistant, setSelectedAssistant] = useState<any>(null)
   const [assistantImages, setAssistantImages] = useState<AssistantImage[]>([])
   const [openaiAssistants, setOpenaiAssistants] = useState<any[]>([])
 
@@ -85,8 +80,8 @@ export const GlobalState: FC<GlobalStateProps> = ({ children }) => {
     includeWorkspaceInstructions: true,
     embeddingsProvider: "openai"
   })
-  const [selectedChat, setSelectedChat] = useState<Tables<"chats"> | null>(null)
-  const [chatFileItems, setChatFileItems] = useState<Tables<"file_items">[]>([])
+  const [selectedChat, setSelectedChat] = useState<any>(null)
+  const [chatFileItems, setChatFileItems] = useState<any[]>([])
 
   // ACTIVE CHAT STORE
   const [isGenerating, setIsGenerating] = useState<boolean>(false)
@@ -120,7 +115,7 @@ export const GlobalState: FC<GlobalStateProps> = ({ children }) => {
   const [sourceCount, setSourceCount] = useState<number>(4)
 
   // TOOL STORE
-  const [selectedTools, setSelectedTools] = useState<Tables<"tools">[]>([])
+  const [selectedTools, setSelectedTools] = useState<any[]>([])
   const [toolInUse, setToolInUse] = useState<string>("none")
 
   useEffect(() => {
@@ -153,48 +148,56 @@ export const GlobalState: FC<GlobalStateProps> = ({ children }) => {
   }, [])
 
   const fetchStartingData = async () => {
-    const session = (await supabase.auth.getSession()).data.session
-
-    if (session) {
-      const user = session.user
-
-      const profile = await getProfileByUserId(user.id)
-      setProfile(profile)
-
-      if (!profile.has_onboarded) {
-        return router.push("/setup")
-      }
-
-      const workspaces = await getWorkspacesByUserId(user.id)
-      setWorkspaces(workspaces)
-
-      for (const workspace of workspaces) {
-        let workspaceImageUrl = ""
-
-        if (workspace.image_path) {
-          workspaceImageUrl =
-            (await getWorkspaceImageFromStorage(workspace.image_path)) || ""
-        }
-
-        if (workspaceImageUrl) {
-          const response = await fetch(workspaceImageUrl)
-          const blob = await response.blob()
-          const base64 = await convertBlobToBase64(blob)
-
-          setWorkspaceImages(prev => [
-            ...prev,
-            {
-              workspaceId: workspace.id,
-              path: workspace.image_path,
-              base64: base64,
-              url: workspaceImageUrl
-            }
-          ])
-        }
-      }
-
-      return profile
+    // Verifica autenticação via JWT em cookie (auth_token)
+    const token =
+      typeof document !== "undefined"
+        ? document.cookie
+            .split("; ")
+            .find(row => row.startsWith("auth_token="))
+            ?.split("=")[1]
+        : null
+    if (!token) {
+      router.push("/login")
+      return null
     }
+    let userId = ""
+    try {
+      const payload = JSON.parse(atob(token.split(".")[1]))
+      userId = payload.user_id
+    } catch {
+      router.push("/login")
+      return null
+    }
+    const profile = await getProfileByUserIdDb(userId)
+    setProfile(profile)
+    if (!profile.has_onboarded) {
+      router.push("/setup")
+      return null
+    }
+    const workspaces = await getWorkspacesByUserId(userId)
+    setWorkspaces(workspaces)
+    for (const workspace of workspaces) {
+      let workspaceImageUrl = ""
+      if (workspace.image_path) {
+        workspaceImageUrl =
+          (await getWorkspaceImageFromStorage(workspace.image_path)) || ""
+      }
+      if (workspaceImageUrl) {
+        const response = await fetch(workspaceImageUrl)
+        const blob = await response.blob()
+        const base64 = await convertBlobToBase64(blob)
+        setWorkspaceImages(prev => [
+          ...prev,
+          {
+            workspaceId: workspace.id,
+            path: workspace.image_path,
+            base64: base64,
+            url: workspaceImageUrl
+          }
+        ])
+      }
+    }
+    return profile
   }
 
   return (

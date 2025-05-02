@@ -1,47 +1,28 @@
-import { supabase } from "@/lib/supabase/browser-client"
-import { Tables } from "@/supabase/types"
+// ATENÇÃO: Este arquivo foi adaptado para não depender do Supabase.
+// Implemente aqui a integração com S3, armazenamento local ou outro serviço de arquivos.
 
 export const uploadProfileImage = async (
-  profile: Tables<"profiles">,
+  profile: { user_id: string; image_path: string },
   image: File
 ) => {
-  const bucket = "profile_images"
-
   const imageSizeLimit = 2000000 // 2MB
-
   if (image.size > imageSizeLimit) {
     throw new Error(`Image must be less than ${imageSizeLimit / 1000000}MB`)
   }
 
-  const currentPath = profile.image_path
+  // Exemplo de caminho para salvar a imagem
   let filePath = `${profile.user_id}/${Date.now()}`
 
-  if (currentPath.length > 0) {
-    const { error: deleteError } = await supabase.storage
-      .from(bucket)
-      .remove([currentPath])
+  // Aqui você pode implementar a lógica para deletar a imagem antiga, se necessário
+  // Exemplo: await deleteFromStorage(profile.image_path)
 
-    if (deleteError) {
-      throw new Error("Error deleting old image")
-    }
-  }
+  // Aqui você pode implementar a lógica de upload para S3, local, etc.
+  // Exemplo:
+  // await uploadToStorage(filePath, image)
 
-  const { error } = await supabase.storage
-    .from(bucket)
-    .upload(filePath, image, {
-      upsert: true
-    })
-
-  if (error) {
-    throw new Error("Error uploading image")
-  }
-
-  const { data: getPublicUrlData } = supabase.storage
-    .from(bucket)
-    .getPublicUrl(filePath)
-
+  // Retorne o caminho salvo e a URL pública (ou null/exemplo)
   return {
     path: filePath,
-    url: getPublicUrlData.publicUrl
+    url: null // Exemplo: `/uploads/profile_images/${filePath}` ou URL do S3
   }
 }

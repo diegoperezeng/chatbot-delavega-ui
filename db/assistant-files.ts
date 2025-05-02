@@ -1,53 +1,57 @@
-import { supabase } from "@/lib/supabase/browser-client"
-import { TablesInsert } from "@/supabase/types"
+import { query } from "@/lib/postgres/client"
+import { AssistantFileInsert } from "@/lib/postgres/types"
 
 export const getAssistantFilesByAssistantId = async (assistantId: string) => {
-  const { data: assistantFiles, error } = await supabase
-    .from("assistants")
-    .select(
-      `
-        id, 
-        name, 
-        files (*)
-      `
-    )
-    .eq("id", assistantId)
-    .single()
-
+  const result = await query(
+    `SELECT a.id, a.name, json_agg(f.*) as files
+     FROM assistants a
+     LEFT JOIN assistant_files af ON af.assistant_id = a.id
+     LEFT JOIN files f ON f.id = af.file_id
+     WHERE a.id = $1
+     GROUP BY a.id, a.name`,
+    [assistantId]
+  )
+  const assistantFiles = result.rows[0]
   if (!assistantFiles) {
-    throw new Error(error.message)
+    throw new Error("Assistente não encontrado")
   }
-
   return assistantFiles
 }
 
 export const createAssistantFile = async (
-  assistantFile: TablesInsert<"assistant_files">
+  assistantFile: AssistantFileInsert
 ) => {
-  const { data: createdAssistantFile, error } = await supabase
-    .from("assistant_files")
-    .insert(assistantFile)
-    .select("*")
-
+  const result = await query(
+    `INSERT INTO assistant_files (assistant_id, file_id, user_id, created_at, updated_at)
+     VALUES ($1, $2, $3, NOW(), NOW())
+     RETURNING *`,
+    [assistantFile.assistant_id, assistantFile.file_id, assistantFile.user_id]
+  )
+  const createdAssistantFile = result.rows[0]
   if (!createdAssistantFile) {
-    throw new Error(error.message)
+    throw new Error("Erro ao criar relação assistente-arquivo")
   }
-
   return createdAssistantFile
 }
 
 export const createAssistantFiles = async (
-  assistantFiles: TablesInsert<"assistant_files">[]
+  assistantFiles: AssistantFileInsert[]
 ) => {
-  const { data: createdAssistantFiles, error } = await supabase
-    .from("assistant_files")
-    .insert(assistantFiles)
-    .select("*")
-
+  const values = assistantFiles
+    .map(
+      af =>
+        `('${af.assistant_id}', '${af.file_id}', '${af.user_id}', NOW(), NOW())`
+    )
+    .join(",")
+  const result = await query(
+    `INSERT INTO assistant_files (assistant_id, file_id, user_id, created_at, updated_at)
+     VALUES ${values}
+     RETURNING *`
+  )
+  const createdAssistantFiles = result.rows
   if (!createdAssistantFiles) {
-    throw new Error(error.message)
+    throw new Error("Erro ao criar relações assistente-arquivo")
   }
-
   return createdAssistantFiles
 }
 
@@ -55,13 +59,10 @@ export const deleteAssistantFile = async (
   assistantId: string,
   fileId: string
 ) => {
-  const { error } = await supabase
-    .from("assistant_files")
-    .delete()
-    .eq("assistant_id", assistantId)
-    .eq("file_id", fileId)
-
-  if (error) throw new Error(error.message)
-
+  const result = await query(
+    `DELETE FROM assistant_files WHERE assistant_id = $1 AND file_id = $2`,
+    [assistantId, fileId]
+  )
+  if (result.rowCount === 0) throw new Error("Relação não encontrada")
   return true
 }
