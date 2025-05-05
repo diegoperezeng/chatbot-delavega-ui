@@ -10,8 +10,27 @@ export type LLMID =
 
 // OpenAI Models (UPDATED 5/13/24)
 export type OpenAILLMID =
+  | "gpt-4.1" // GPT-4.1
+  | "gpt-4.1-mini" // GPT-4.1 Mini
+  | "gpt-4.1-nano" // GPT-4.1 Nano
+  | "gpt-4.5-preview" // GPT-4.5 Preview
   | "gpt-4o" // GPT-4o
-  | "gpt-4-turbo-preview" // GPT-4 Turbo
+  | "gpt-4o-audio-preview" // GPT-4o Audio Preview
+  | "gpt-4o-realtime-preview" // GPT-4o Realtime Preview
+  | "gpt-4o-mini" // GPT-4o Mini
+  | "gpt-4o-mini-audio-preview" // GPT-4o Mini Audio Preview
+  | "gpt-4o-mini-realtime-preview" // GPT-4o Mini Realtime Preview
+  | "o1" // O1
+  | "o1-pro" // O1 Pro
+  | "o3" // O3
+  | "o4-mini" // O4 Mini
+  | "o3-mini" // O3 Mini
+  | "o1-mini" // O1 Mini
+  | "gpt-4o-mini-search-preview" // GPT-4o Mini Search Preview
+  | "gpt-4o-search-preview" // GPT-4o Search Preview
+  | "computer-use-preview" // Computer Use Preview
+  | "gpt-image-1" // GPT Image 1
+  | "gpt-4-turbo" // GPT-4 Turbo
   | "gpt-4-vision-preview" // GPT-4 Vision
   | "gpt-4" // GPT-4
   | "gpt-3.5-turbo" // Updated GPT-3.5 Turbo
